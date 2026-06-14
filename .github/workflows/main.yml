@@ -1,0 +1,76 @@
+name: Build Ascendia Kernel (A52s)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            git curl wget zip unzip flex bison bc cpio \
+            build-essential libssl-dev libelf-dev \
+            python3 python-is-python3 \
+            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
+
+      - name: Setup Clang (main-r530567)
+        run: |
+          mkdir -p clang
+          cd clang
+
+          wget -O clang.tar.gz \
+            https://github.com/danjekb/tools/releases/download/clang/main-clang-r530567.tar.gz
+
+          tar -xzf clang.tar.gz
+          rm clang.tar.gz
+
+          echo "$PWD/bin" >> $GITHUB_PATH
+
+      - name: Export env
+        run: |
+          echo "ARCH=arm64" >> $GITHUB_ENV
+          echo "SUBARCH=arm64" >> $GITHUB_ENV
+
+      - name: Build kernel
+        run: |
+          export ARCH=arm64
+          export SUBARCH=arm64
+
+          export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
+
+          make O=out ARCH=arm64 vendor/a52sxq_eur_open_defconfig
+
+          make -j$(nproc --all) O=out \
+            ARCH=arm64 \
+            CC=clang \
+            LLVM=1 \
+            LLVM_IAS=1 \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+
+      - name: Collect images
+        run: |
+          mkdir -p artifacts
+
+          find . -type f -name "boot.img" -exec cp {} artifacts/ \; || true
+          find . -type f -name "vendor_boot.img" -exec cp {} artifacts/ \; || true
+          find . -type f -name "dtbo.img" -exec cp {} artifacts/ \; || true
+          find out -type f -name "Image*" -exec cp {} artifacts/ \; || true
+          find out -type f -name "*.dtb" -exec cp {} artifacts/ \; || true
+
+          echo "=== ARTIFACTS ==="
+          ls -lah artifacts || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: A52s-Kernel-Build
+          path: artifacts/*
+          if-no-files-found: warn
