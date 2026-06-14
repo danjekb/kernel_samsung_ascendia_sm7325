@@ -43,13 +43,32 @@ jobs:
           echo "ARCH=arm64" >> $GITHUB_ENV
           echo "SUBARCH=arm64" >> $GITHUB_ENV
 
-      - name: Build kernel
+      - name: Configure kernel
         run: |
           export ARCH=arm64
           export SUBARCH=arm64
           export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
 
+          # Wczytaj domyślną konfigurację
           make O=out ARCH=arm64 vendor/a52sxq_eur_open_defconfig
+
+          # Wyłącz problematyczne funkcje
+          scripts/config --file out/.config \
+            --disable LTO_CLANG \
+            --disable CFI_CLANG \
+            --disable SHADOW_CALL_STACK \
+            --disable LTO \
+            --disable THINLTO \
+            --disable CFI_CLANG_SHADOW
+
+          # Zsynchro.nizuj konfigurację
+          make O=out ARCH=arm64 olddefconfig
+
+      - name: Build kernel
+        run: |
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
