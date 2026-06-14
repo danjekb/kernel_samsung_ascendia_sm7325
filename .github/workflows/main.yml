@@ -1,15 +1,20 @@
-name: Build Ascendia Kernel (A52s)
+name: Build Ascendia Kernel (A52s - stock)
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - stock
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout source
+      - name: Checkout stock branch
         uses: actions/checkout@v4
+        with:
+          ref: stock
 
       - name: Install dependencies
         run: |
@@ -33,7 +38,7 @@ jobs:
 
           echo "$PWD/bin" >> $GITHUB_PATH
 
-      - name: Export env
+      - name: Build environment
         run: |
           echo "ARCH=arm64" >> $GITHUB_ENV
           echo "SUBARCH=arm64" >> $GITHUB_ENV
@@ -42,7 +47,6 @@ jobs:
         run: |
           export ARCH=arm64
           export SUBARCH=arm64
-
           export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
 
           make O=out ARCH=arm64 vendor/a52sxq_eur_open_defconfig
@@ -55,22 +59,23 @@ jobs:
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi-
 
-      - name: Collect images
+      - name: Collect outputs
         run: |
           mkdir -p artifacts
 
           find . -type f -name "boot.img" -exec cp {} artifacts/ \; || true
           find . -type f -name "vendor_boot.img" -exec cp {} artifacts/ \; || true
           find . -type f -name "dtbo.img" -exec cp {} artifacts/ \; || true
+
           find out -type f -name "Image*" -exec cp {} artifacts/ \; || true
           find out -type f -name "*.dtb" -exec cp {} artifacts/ \; || true
 
-          echo "=== ARTIFACTS ==="
+          echo "=== RESULT ==="
           ls -lah artifacts || true
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: A52s-Kernel-Build
+          name: A52s-Kernel-Stock-Build
           path: artifacts/*
           if-no-files-found: warn
